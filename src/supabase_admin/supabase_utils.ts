@@ -10,17 +10,20 @@ export function isServerFunction(filePath: string) {
 }
 
 /**
- * Deploys all Supabase edge functions found in the app's supabase/functions directory
+ * Deploys Supabase edge functions found in the app's supabase/functions directory
  * @param appPath - The absolute path to the app directory
  * @param supabaseProjectId - The Supabase project ID
+ * @param functionNames - Optional array of specific function names to deploy. If not provided, deploys all functions.
  * @returns An array of error messages for functions that failed to deploy (empty if all succeeded)
  */
 export async function deployAllSupabaseFunctions({
   appPath,
   supabaseProjectId,
+  functionNames,
 }: {
   appPath: string;
   supabaseProjectId: string;
+  functionNames?: string[];
 }): Promise<string[]> {
   const functionsDir = path.join(appPath, "supabase", "functions");
 
@@ -35,45 +38,89 @@ export async function deployAllSupabaseFunctions({
   const errors: string[] = [];
 
   try {
-    // Read all directories in supabase/functions
-    const entries = await fs.readdir(functionsDir, { withFileTypes: true });
-    const functionDirs = entries.filter((entry) => entry.isDirectory());
+    let functionDirsToProcess: string[];
 
-    logger.info(
-      `Found ${functionDirs.length} functions to deploy in ${functionsDir}`,
-    );
+    if (functionNames && functionNames.length > 0) {
+      // Deploy only specified functions
+      functionDirsToProcess = functionNames;
+      logger.info(
+        `Deploying ${functionNames.length} specified functions: ${functionNames.join(", ")}`,
+      );
+    } else {
+      // Deploy all functions
+      const entries = await fs.readdir(functionsDir, { withFileTypes: true });
+      functionDirsToProcess = entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+      logger.info(
+        `Found ${functionDirsToProcess.length} functions to deploy in ${functionsDir}`,
+      );
+    }
 
-    // Deploy each function
-    for (const functionDir of functionDirs) {
-      const functionName = functionDir.name;
-      const indexPath = path.join(functionsDir, functionName, "index.ts");
+    if (functionDirsToProcess.length === 0) {
+      logger.info("No functions to deploy");
+      return [];
+    }
 
-      // Check if index.ts exists
-      try {
-        await fs.access(indexPath);
-      } catch {
-        logger.warn(
-          `Skipping ${functionName}: index.ts not found at ${indexPath}`,
-        );
-        continue;
+    // Deploy functions in batches of 5
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < functionDirsToProcess.length; i += BATCH_SIZE) {
+      const batch = functionDirsToProcess.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(functionDirsToProcess.length / BATCH_SIZE);
+
+      logger.info(
+        `Deploying batch ${batchNumber}/${totalBatches} (${batch.length} functions)`,
+      );
+
+      // Deploy all functions in this batch in parallel
+      const deploymentPromises = batch.map(async (functionName) => {
+        const indexPath = path.join(functionsDir, functionName, "index.ts");
+
+        // Check if index.ts exists
+        try {
+          await fs.access(indexPath);
+        } catch {
+          logger.warn(
+            `Skipping ${functionName}: index.ts not found at ${indexPath}`,
+          );
+          return { functionName, skipped: true };
+        }
+
+        try {
+          const content = await fs.readFile(indexPath, "utf-8");
+          logger.info(`Deploying function: ${functionName}`);
+
+          await deploySupabaseFunctions({
+            supabaseProjectId,
+            functionName,
+            content,
+          });
+
+          logger.info(`Successfully deployed function: ${functionName}`);
+          return { functionName, success: true };
+        } catch (error: any) {
+          const errorMessage = `Failed to deploy ${functionName}: ${error.message}`;
+          logger.error(errorMessage, error);
+          return { functionName, error: errorMessage };
+        }
+      });
+
+      // Wait for all deployments in this batch to complete
+      const results = await Promise.allSettled(deploymentPromises);
+
+      // Collect errors from this batch
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value.error) {
+          errors.push(result.value.error);
+        } else if (result.status === "rejected") {
+          const errorMessage = `Unexpected error deploying function: ${result.reason}`;
+          logger.error(errorMessage);
+          errors.push(errorMessage);
+        }
       }
 
-      try {
-        const content = await fs.readFile(indexPath, "utf-8");
-        logger.info(`Deploying function: ${functionName}`);
-
-        await deploySupabaseFunctions({
-          supabaseProjectId,
-          functionName,
-          content,
-        });
-
-        logger.info(`Successfully deployed function: ${functionName}`);
-      } catch (error: any) {
-        const errorMessage = `Failed to deploy ${functionName}: ${error.message}`;
-        logger.error(errorMessage, error);
-        errors.push(errorMessage);
-      }
+      logger.info(`Completed batch ${batchNumber}/${totalBatches}`);
     }
   } catch (error: any) {
     const errorMessage = `Error reading functions directory: ${error.message}`;

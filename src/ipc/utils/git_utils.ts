@@ -221,3 +221,84 @@ export async function getFileAtCommit({
     }
   }
 }
+
+/**
+ * Gets the list of files that changed between two commits
+ * @param path - The path to the git repository
+ * @param fromCommit - The starting commit hash
+ * @param toCommit - The ending commit hash (defaults to HEAD)
+ * @returns Array of file paths that changed between the commits
+ */
+export async function getChangedFilesBetweenCommits({
+  path,
+  fromCommit,
+  toCommit = "HEAD",
+}: {
+  path: string;
+  fromCommit: string;
+  toCommit?: string;
+}): Promise<string[]> {
+  const settings = readSettings();
+  if (settings.enableNativeGit) {
+    try {
+      const { stdout } = await execAsync(
+        `git -C "${path}" diff --name-only "${fromCommit}" "${toCommit}"`,
+      );
+      return stdout
+        .trim()
+        .split("\n")
+        .filter((line) => line.length > 0);
+    } catch (error: any) {
+      logger.error(
+        `Error getting changed files between ${fromCommit} and ${toCommit}: ${error.message}`,
+      );
+      return [];
+    }
+  } else {
+    try {
+      const changedFiles = new Set<string>();
+
+      // Walk through both commits and compare
+      await git.walk({
+        fs,
+        dir: path,
+        trees: [git.TREE({ ref: fromCommit }), git.TREE({ ref: toCommit })],
+        map: async function (filepath, [fromEntry, toEntry]) {
+          // Skip if both entries are null (shouldn't happen)
+          if (!fromEntry && !toEntry) {
+            return null;
+          }
+
+          // File was added
+          if (!fromEntry && toEntry) {
+            changedFiles.add(filepath);
+            return;
+          }
+
+          // File was deleted
+          if (fromEntry && !toEntry) {
+            changedFiles.add(filepath);
+            return;
+          }
+
+          // Both exist - check if they're different
+          if (fromEntry && toEntry) {
+            const fromOid = await fromEntry.oid();
+            const toOid = await toEntry.oid();
+
+            if (fromOid !== toOid) {
+              changedFiles.add(filepath);
+            }
+          }
+        },
+      });
+
+      return Array.from(changedFiles);
+    } catch (error: any) {
+      logger.error(
+        `Error getting changed files between ${fromCommit} and ${toCommit}: ${error.message}`,
+      );
+      return [];
+    }
+  }
+}

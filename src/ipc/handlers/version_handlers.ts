@@ -14,8 +14,16 @@ import git, { type ReadCommitResult } from "isomorphic-git";
 import { withLock } from "../utils/lock_utils";
 import log from "electron-log";
 import { createLoggedHandler } from "./safe_handle";
-import { gitCheckout, gitCommit, gitStageToRevert } from "../utils/git_utils";
-import { deployAllSupabaseFunctions } from "../../supabase_admin/supabase_utils";
+import {
+  gitCheckout,
+  gitCommit,
+  gitStageToRevert,
+  getChangedFilesBetweenCommits,
+} from "../utils/git_utils";
+import {
+  deployAllSupabaseFunctions,
+  isServerFunction,
+} from "../../supabase_admin/supabase_utils";
 
 import {
   getNeonClient,
@@ -312,26 +320,65 @@ export function registerVersionHandlers() {
             appPath: app.path,
           });
         }
-        // Re-deploy all Supabase edge functions after reverting
+        // Re-deploy changed Supabase edge functions after reverting
         if (app.supabaseProjectId) {
           try {
-            logger.info(
-              `Re-deploying all Supabase edge functions for app ${appId} after revert`,
-            );
-            const deployErrors = await deployAllSupabaseFunctions({
-              appPath,
-              supabaseProjectId: app.supabaseProjectId,
+            // Get the list of files that changed between the previous version and current
+            const changedFiles = await getChangedFilesBetweenCommits({
+              path: appPath,
+              fromCommit: previousVersionId,
+              toCommit: currentCommitHash,
             });
 
-            if (deployErrors.length > 0) {
-              warningMessage += `Some Supabase functions failed to deploy after revert: ${deployErrors.join(", ")}`;
-              logger.warn(warningMessage);
-              // Note: We don't fail the revert operation if function deployment fails
-              // The code has been successfully reverted, but functions may be out of sync
-            } else {
-              logger.info(
-                `Successfully re-deployed all Supabase edge functions for app ${appId}`,
+            // Filter to only include Supabase edge functions
+            const changedFunctionFiles = changedFiles.filter((filePath) =>
+              isServerFunction(filePath),
+            );
+
+            if (changedFunctionFiles.length > 0) {
+              // Extract unique function names from the file paths
+              // e.g., "supabase/functions/hello/index.ts" -> "hello"
+              const functionNames = Array.from(
+                new Set(
+                  changedFunctionFiles
+                    .map((filePath) => {
+                      const parts = filePath.split("/");
+                      // Find the index of "functions" in the path
+                      const functionsIndex = parts.indexOf("functions");
+                      if (
+                        functionsIndex >= 0 &&
+                        parts.length > functionsIndex + 1
+                      ) {
+                        return parts[functionsIndex + 1];
+                      }
+                      return null;
+                    })
+                    .filter((name): name is string => name !== null),
+                ),
               );
+
+              logger.info(
+                `Re-deploying ${functionNames.length} changed Supabase edge functions for app ${appId}: ${functionNames.join(", ")}`,
+              );
+
+              const deployErrors = await deployAllSupabaseFunctions({
+                appPath,
+                supabaseProjectId: app.supabaseProjectId,
+                functionNames,
+              });
+
+              if (deployErrors.length > 0) {
+                warningMessage += `Some Supabase functions failed to deploy after revert: ${deployErrors.join(", ")}`;
+                logger.warn(warningMessage);
+                // Note: We don't fail the revert operation if function deployment fails
+                // The code has been successfully reverted, but functions may be out of sync
+              } else {
+                logger.info(
+                  `Successfully re-deployed ${functionNames.length} Supabase edge functions for app ${appId}`,
+                );
+              }
+            } else {
+              logger.info("No Supabase edge functions changed in this revert");
             }
           } catch (error) {
             warningMessage += `Error re-deploying Supabase edge functions after revert: ${error}`;
