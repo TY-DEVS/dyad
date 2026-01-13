@@ -24,7 +24,6 @@ import { webSearchTool } from "./tools/web_search";
 import { webCrawlTool } from "./tools/web_crawl";
 import { updateTodosTool } from "./tools/update_todos";
 import { runTypeChecksTool } from "./tools/run_type_checks";
-import type { LanguageModelV3ToolResultOutput } from "@ai-sdk/provider";
 import {
   escapeXmlAttr,
   escapeXmlContent,
@@ -242,7 +241,7 @@ async function processArgPlaceholders<T extends Record<string, any>>(
  */
 function convertToolResultForAiSdk(
   result: ToolResult,
-): LanguageModelV3ToolResultOutput {
+): any {
   if (typeof result === "string") {
     return { type: "text", value: result };
   }
