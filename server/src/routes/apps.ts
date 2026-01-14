@@ -73,11 +73,12 @@ function getAppPreviewUrl(appId: number, port?: number, req?: any): string {
     // If we have a request object, try to infer the domain from the Host header
     // This repairs cases where APP_BASE_DOMAIN is not set but we are accessed via a domain
     if (baseDomain === 'localhost' && req) {
-        const host = req.get('host'); // e.g. dyad1.ty-dev.site
+        const host = req.get('host');
         if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
             // Heuristic: if host is domain.com, app subdomain is app-dyad-{id}.domain.com
-            // Ensure we strip 'dyad1.' if present to avoid app-dyad-72.dyad1.ty-dev.site
-            const rootDomain = host.replace('dyad1.', '');
+            // Ensure we strip the main app subdomain if present
+            const appDomain = process.env.APP_DOMAIN || '';
+            const rootDomain = appDomain ? host.split('.')[0] === appDomain.split('.')[0] ? host.replace(appDomain.split('.')[0] + '.', '') : host : host;
             // FORCE HTTPS to avoid mixed content
             return `https://app-dyad-${appId}.${rootDomain}`;
         }

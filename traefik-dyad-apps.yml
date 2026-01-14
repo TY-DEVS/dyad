@@ -4,10 +4,8 @@
 http:
   routers:
     dyad-apps:
-      # Match subdomains like app-dyad-72.ty-dev.site OR app-dyad-72.dyad1.ty-dev.site
-      # Match subdomains like app-dyad-72.ty-dev.site
       # Match ONLY flat subdomains (Standard Regex)
-      rule: "HostRegexp(`^app-dyad-[0-9]+\\.ty-dev\\.site$`)"
+      rule: "HostRegexp(`^app-dyad-[0-9]+\\.${APP_DOMAIN}$`)"
       entryPoints:
         - https
       service: dyad-apps-service
@@ -20,7 +18,7 @@ http:
 
     # WebSocket Router for Main Domain (Terminal/Chat)
     dyad-ws:
-      rule: "Host(`dyad1.ty-dev.site`) && PathPrefix(`/ws/`)"
+      rule: "Host(`${APP_DOMAIN}`) && PathPrefix(`/ws/`)"
       priority: 1000
       entryPoints:
         - https

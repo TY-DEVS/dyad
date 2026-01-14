@@ -15,7 +15,8 @@ const pool = new Pool({ connectionString });
 
 async function runMigration() {
     try {
-        console.log('🔄 Connecting to database at 62.169.27.8...');
+        const dbUrl = new URL(connectionString);
+        console.log(`🔄 Connecting to database at ${dbUrl.hostname}...`);
 
         // Create app_files table
         console.log('📝 Creating app_files table...');
