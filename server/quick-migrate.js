@@ -1,13 +1,22 @@
 // Quick migration script to create app_files table
 const { Pool } = require('pg');
 
-const connectionString = 'postgres://postgres:YOMFBjzOHTAZtfogMLYGOvp3jJTBUW7zXIQH7HFHPWC4uzW4muObmDgoNXMhZtOM@62.169.27.8:5432/dyad';
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+    console.error('❌ Error: DATABASE_URL environment variable is not set.');
+    process.exit(1);
+}
 
 const pool = new Pool({ connectionString });
 
 async function runMigration() {
     try {
-        console.log('🔄 Connecting to database at 62.169.27.8...');
+        const dbUrl = new URL(connectionString);
+        console.log(`🔄 Connecting to database at ${dbUrl.hostname}...`);
 
         // Create app_files table
         console.log('📝 Creating app_files table...');
