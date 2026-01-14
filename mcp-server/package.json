@@ -8,8 +8,8 @@
     "dyad-mcp-server": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "node init && tsc",
+    "dev": "node init && tsc --watch",
     "prepare": "npm run build",
     "inspector": "npx @modelcontextprotocol/inspector dist/index.js",
     "http": "npm run build && node dist/http-proxy.js",

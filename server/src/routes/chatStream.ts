@@ -133,7 +133,7 @@ async function getModelProvider(modelId: string) {
                 // Add custom headers for OpenRouter
                 fetch: async (url, options) => {
                     const headers = new Headers(options?.headers);
-                    headers.set('HTTP-Referer', 'https://dyad1.ty-dev.site');
+                    headers.set('HTTP-Referer', process.env.API_BASE_URL || 'https://localhost');
                     headers.set('X-Title', 'Dyad Chat');
 
                     return fetch(url, {
@@ -168,7 +168,7 @@ async function getModelProvider(modelId: string) {
                     // Add custom headers for OpenRouter
                     fetch: async (url, options) => {
                         const headers = new Headers(options?.headers);
-                        headers.set('HTTP-Referer', 'https://dyad1.ty-dev.site');
+                        headers.set('HTTP-Referer', process.env.API_BASE_URL || 'https://localhost');
                         headers.set('X-Title', 'Dyad Chat');
 
                         return fetch(url, {

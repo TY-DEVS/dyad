@@ -6,8 +6,8 @@ services:
     container_name: dyad-web-u0s4g4kwowsgg48gckoko8gw-174347525851
     restart: unless-stopped
     networks:
-      coolify: null
-      u0s4g4kwowsgg48gckoko8gw: null
+      - coolify
+      - u0s4g4kwowsgg48gckoko8gw
     volumes:
       - 'u0s4g4kwowsgg48gckoko8gw_dyad-data:/app/data'
       - 'u0s4g4kwowsgg48gckoko8gw_dyad-projects:/app/projects'
@@ -22,10 +22,10 @@ services:
       COOLIFY_BRANCH: '"main"'
       COOLIFY_RESOURCE_UUID: u0s4g4kwowsgg48gckoko8gw
       COOLIFY_CONTAINER_NAME: dyad-web-u0s4g4kwowsgg48gckoko8gw-174347525851
-      SERVICE_URL_DYAD_WEB: 'https://dyad1.ty-dev.site'
-      SERVICE_FQDN_DYAD_WEB: dyad1.ty-dev.site
-      COOLIFY_URL: 'https://dyad1.ty-dev.site'
-      COOLIFY_FQDN: dyad1.ty-dev.site
+      SERVICE_URL_DYAD_WEB: 'https://${APP_DOMAIN}'
+      SERVICE_FQDN_DYAD_WEB: ${APP_DOMAIN}
+      COOLIFY_URL: 'https://${APP_DOMAIN}'
+      COOLIFY_FQDN: ${APP_DOMAIN}
       SERVICE_NAME_DYAD_WEB: dyad-web
     healthcheck:
       test:
@@ -41,7 +41,7 @@ services:
     labels:
       - traefik.enable=true
       # App Subdomains Router
-      - 'traefik.http.routers.dyad-apps.rule=HostRegexp(`{subdomain:app-dyad-[0-9]+}.ty-dev.site`)'
+      - 'traefik.http.routers.dyad-apps.rule=HostRegexp(`{subdomain:app-dyad-[0-9]+}.${APP_DOMAIN}`)'
       - traefik.http.routers.dyad-apps.entrypoints=https
       - traefik.http.routers.dyad-apps.tls=true
       - traefik.http.routers.dyad-apps.middlewares=dyad-apps-headers
@@ -55,13 +55,13 @@ services:
       - 'traefik.http.middlewares.dyad-apps-headers.headers.customresponseheaders.Content-Security-Policy=frame-ancestors *'
       - traefik.http.middlewares.dyad-apps-headers.headers.framedeny=false
       # WebSocket Router
-      - 'traefik.http.routers.dyad-ws.rule=Host(`dyad1.ty-dev.site`) && PathPrefix(`/ws/`)'
+      - 'traefik.http.routers.dyad-ws.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/ws/`)'
       - traefik.http.routers.dyad-ws.priority=1000
       - traefik.http.routers.dyad-ws.entrypoints=https
       - traefik.http.routers.dyad-ws.tls=true
       - traefik.http.routers.dyad-ws.service=dyad-web
       # Main Domain Router
-      - traefik.http.routers.dyad-web-root.rule=Host(`dyad1.ty-dev.site`)
+      - traefik.http.routers.dyad-web-root.rule=Host(`${APP_DOMAIN}`)
       - traefik.http.routers.dyad-web-root.entrypoints=https
       - traefik.http.routers.dyad-web-root.tls=true
       - traefik.http.routers.dyad-web-root.service=dyad-web
@@ -81,10 +81,10 @@ services:
       - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
       - traefik.http.routers.http-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.entryPoints=http
       - traefik.http.routers.http-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.middlewares=redirect-to-https
-      - 'traefik.http.routers.http-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.rule=Host(`dyad1.ty-dev.site`) && PathPrefix(`/`)'
+      - 'traefik.http.routers.http-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/`)'
       - traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.entryPoints=https
       - 'traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.middlewares=gzip,dyad-apps-headers'
-      - 'traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.rule=Host(`dyad1.ty-dev.site`) && PathPrefix(`/`)'
+      - 'traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/`)'
       - traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.tls.certresolver=letsencrypt
       - traefik.http.routers.https-0-u0s4g4kwowsgg48gckoko8gw-dyad-web.tls=true
       - 'caddy_0.encode=zstd gzip'
@@ -92,7 +92,7 @@ services:
       - 'caddy_0.handle_path=/*'
       - caddy_0.header=-Server
       - 'caddy_0.try_files={path} /index.html /index.php'
-      - 'caddy_0=https://dyad1.ty-dev.site'
+      - 'caddy_0=https://${APP_DOMAIN}'
       - caddy_ingress_network=u0s4g4kwowsgg48gckoko8gw
     env_file:
       - .env
